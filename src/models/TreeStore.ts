@@ -18,7 +18,12 @@ export class TreeStore<T extends TreeItem> {
   }
 
   public getItem(id: number | string): T | undefined {
-    return this.itemsMap.get(id);
+    for (const [key, value] of this.itemsMap.entries()) {
+      if (key === id) {
+        return value;
+      }
+    }
+    return undefined;
   }
 
   public getChildren(id: number | string): T[] {
@@ -33,13 +38,19 @@ export class TreeStore<T extends TreeItem> {
 
   public getAllChildren(id: number | string): T[] {
     const allDesc: T[] = [];
+    const visited = new Set<string | number>();
+
     const collect = (curId: number | string) => {
+      if (visited.has(curId)) return;
+      visited.add(curId);
+
       const kids = this.getChildren(curId);
       for (const c of kids) {
-        allDesc.push(c);
-        collect(c.id);
+        collect(c.id); // Collect children first
+        allDesc.push(c); // Then add to the list
       }
     };
+
     collect(id);
     return allDesc;
   }
