@@ -8,6 +8,7 @@ import {
   defineComponent,
   onBeforeMount,
   shallowRef,
+  nextTick,
 } from "vue";
 import { AgGridVue } from "ag-grid-vue3";
 // import { ModuleRegistry, GridApi } from "@ag-grid-community/core";
@@ -24,20 +25,30 @@ import {
   GetRowIdFunc,
   GridApi,
   GridOptions,
+  CustomEditorModule,
   GridReadyEvent,
   ModuleRegistry,
   ValidationModule,
+  ClientSideRowModelApiModule,
+  NumberEditorModule,
+  TextEditorModule,
+  CellValueChangedEvent,
+  ValueGetterParams,
+  ValueSetterParams,
 } from "ag-grid-community";
 import { TreeDataModule } from "ag-grid-enterprise";
 
 import { TreeStore } from "../models/TreeStore";
 import type { TreeItem } from "../models/TreeStore";
-import { getAllJSDocTagsOfKind } from "typescript";
+import LabelEditor from "./LabelEditor.vue";
 
 ModuleRegistry.registerModules([
   ClientSideRowModelModule,
   TreeDataModule,
   ValidationModule,
+  TextEditorModule,
+  ClientSideRowModelApiModule,
+  CustomEditorModule,
 ]);
 
 const isEditMode = ref(false);
@@ -59,7 +70,11 @@ const getRowId = ref<GetRowIdFunc>((params) => {
   return params.data.id;
 });
 
-const rowData = computed(() => treeStore.value.getAll());
+// const rowData = ref(treeStore.value.getAll());
+
+const rowData = computed(() => {
+  return treeStore.value.getAll();
+});
 
 const gridApi = shallowRef<GridApi | null>(null);
 
@@ -120,7 +135,7 @@ const autoGroupColumnDef = ref<ColDef>({
   },
 });
 
-const columnDefs = ref<ColDef[]>([
+const columnDefs = computed<ColDef[]>(() => [
   {
     headerName: "№ п/п",
     valueGetter: (params) => {
@@ -129,8 +144,25 @@ const columnDefs = ref<ColDef[]>([
     },
   },
   {
-    field: "label",
-    headerName: "Наименование",
+    // field: "label",
+    valueGetter: (params: ValueGetterParams) => {
+      return params.data.label;
+    },
+    valueSetter: (params: ValueSetterParams) => {
+      const newLabel = params.newValue || "";
+      if (
+        !newLabel ||
+        newLabel === params.data.label ||
+        newLabel.trim() === ""
+      ) {
+        return false; // No change
+      }
+      treeStore.value.updateItem({ ...params.data, label: newLabel });
+    },
+    // cellRenderer: LabelEditor,
+    // cellEditor: LabelEditor,
+    editable: isEditMode.value,
+    // cellEditorParams: { selectedItem: (params) => params.data },
   },
 ]);
 const defaultColDef = ref<ColDef>({
@@ -142,14 +174,31 @@ const groupDefaultExpanded = ref(-1);
 
 const onGridReady = (params: GridReadyEvent) => {
   gridApi.value = params.api;
+  console.log("gridApi", gridApi.value);
+  // const updateData = (data) => (rowData.value = data);
 };
 
-function handleAddChild(item: TreeItem) {
+async function handleAddChild(item: TreeItem) {
+  const newIndex = Date.now().toString();
+  const newItem = {
+    id: newIndex,
+    parent: item.id,
+    label: `Новый элемент ${newIndex}`,
+  };
+  treeStore.value.addItem(newItem);
+
+  // get the row node with ID 55
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  const rowNode = gridApi.value?.getRowNode(newIndex);
+  console.log("rowNode", rowNode);
+
+  // do something with the row, e.g. select it
+  rowNode?.setSelected(true);
   console.log("handleAddChild", item);
 }
 
 function handleRemoveNode(item: TreeItem) {
-  console.log("handleRemoveNode", item);
+  treeStore.value.removeItem(item.id);
 }
 </script>
 
@@ -171,7 +220,7 @@ function handleRemoveNode(item: TreeItem) {
         :columnDefs="columnDefs"
         :defaultColDef="defaultColDef"
         :autoGroupColumnDef="autoGroupColumnDef"
-        :rowData="rowData"
+        v-model="rowData"
         :getRowId="getRowId"
         :treeData="true"
         :treeDataParentIdField="treeDataParentIdField"
@@ -179,6 +228,7 @@ function handleRemoveNode(item: TreeItem) {
       />
     </div>
   </div>
+  {{ JSON.stringify(treeStore.getAll(), null, 2) }}
 </template>
 
 <style scoped>
