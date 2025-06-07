@@ -55,36 +55,48 @@ const treeStore = ref(
 const rowData = computed(() => treeStore.value.getAll());
 
 const gridApi = shallowRef<GridApi | null>(null);
-const columnDefs = ref<ColDef[]>([
-  {
-    field: "id",
-  },
-  {
-    field: "label",
-  },
-]);
-const defaultColDef = ref<ColDef>({
-  flex: 1,
-});
+
 const autoGroupColumnDef = ref<ColDef>({
-  headerName: "Name",
+  headerName: "Категория",
   field: "parent",
   cellRendererParams: {
     suppressCount: true,
+  },
+  valueGetter: (params) => {
+    // Use the label field for grouping
+    return params.data ? params.data.label : "";
   },
 });
 // const rowData = ref<any[] | null>(getData());
 const getRowId = ref<GetRowIdFunc>((params) => {
   if (params.data && params.data.id) {
     if (typeof params.data.id === "number") {
-      return params.data.id.toString() + "_number"; // Convert number to string for consistency
+      return params.data.id.toString(); // Convert number to string for consistency
     }
     if (typeof params.data.id === "string") {
-      return params.data.id; // Keep string as is
+      return `"${params.data.id}"`; // Return string id surrounded by quotes
     }
     return;
   }
 });
+
+const columnDefs = ref<ColDef[]>([
+  {
+    headerName: "№ п/п",
+    valueGetter: (params) => {
+      const id = getRowId.value?.(params);
+      return id;
+    },
+  },
+  {
+    field: "label",
+    headerName: "Наименование",
+  },
+]);
+const defaultColDef = ref<ColDef>({
+  flex: 1,
+});
+
 const treeDataParentIdField = ref("parent");
 const groupDefaultExpanded = ref(-1);
 
