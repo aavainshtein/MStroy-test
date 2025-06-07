@@ -136,12 +136,28 @@ const autoGroupColumnDef = ref<ColDef>({
   },
 });
 
-const undoStack = ref<any[]>([]);
-const redoStack = ref<any[]>([]);
+// Типы для истории изменений
+interface ActionAdd {
+  type: "add";
+  item: TreeItem;
+}
+interface ActionRemove {
+  type: "remove";
+  item: TreeItem;
+  children: TreeItem[];
+}
+interface ActionUpdate {
+  type: "update";
+  oldItem: TreeItem;
+  newItem: TreeItem;
+}
+type Action = ActionAdd | ActionRemove | ActionUpdate;
 
-function pushToUndoStack() {
-  undoStack.value.push(JSON.stringify(treeStore.value.getAll()));
-  // Очищаем redoStack при новом действии
+const undoStack = ref<Action[]>([]);
+const redoStack = ref<Action[]>([]);
+
+function pushAction(action: Action) {
+  undoStack.value.push(action);
   redoStack.value = [];
 }
 
@@ -184,45 +200,59 @@ const onGridReady = (params: GridReadyEvent) => {
 };
 
 async function handleAddChild(item: TreeItem) {
-  pushToUndoStack();
   const newIndex = Date.now().toString();
   const newItem: TreeItem = {
     id: newIndex,
     parent: item.id,
     label: `Новый элемент ${newIndex}`,
   };
-  treeStore.value.addItem(newItem as TreeItem);
+  treeStore.value.addItem(newItem);
+  pushAction({ type: "add", item: newItem });
   await new Promise((resolve) => setTimeout(resolve, 1000));
   const rowNode = gridApi.value?.getRowNode(newIndex);
   const rowIndex = rowNode?.rowIndex!;
-  gridApi.value!.startEditingCell({
-    rowIndex: rowIndex,
-    colKey: "label",
-  });
+  gridApi.value!.startEditingCell({ rowIndex, colKey: "label" });
 }
 
 function handleRemoveNode(item: TreeItem) {
-  pushToUndoStack();
+  // Сохраняем удаляемый элемент и всех его потомков
+  const children = treeStore.value.getAllChildren(item.id);
   treeStore.value.removeItem(item.id);
+  pushAction({ type: "remove", item, children });
 }
 
 function handleRenameNode(item: TreeItem, newLabel: string) {
-  pushToUndoStack();
-  treeStore.value.updateItem({ ...item, label: newLabel } as TreeItem);
+  const oldItem = { ...item };
+  const newItem = { ...item, label: newLabel };
+  treeStore.value.updateItem(newItem);
+  pushAction({ type: "update", oldItem, newItem });
 }
 
 function undo() {
-  if (undoStack.value.length === 0) return;
-  redoStack.value.push(JSON.stringify(treeStore.value.getAll()));
-  const prev = undoStack.value.pop();
-  treeStore.value.setAll(JSON.parse(prev) as TreeItem[]);
+  const action = undoStack.value.pop();
+  if (!action) return;
+  if (action.type === "add") {
+    treeStore.value.removeItem(action.item.id);
+  } else if (action.type === "remove") {
+    treeStore.value.addItem(action.item);
+    for (const child of action.children) treeStore.value.addItem(child);
+  } else if (action.type === "update") {
+    treeStore.value.updateItem(action.oldItem);
+  }
+  redoStack.value.push(action);
 }
 
 function redo() {
-  if (redoStack.value.length === 0) return;
-  undoStack.value.push(JSON.stringify(treeStore.value.getAll()));
-  const next = redoStack.value.pop();
-  treeStore.value.setAll(JSON.parse(next) as TreeItem[]);
+  const action = redoStack.value.pop();
+  if (!action) return;
+  if (action.type === "add") {
+    treeStore.value.addItem(action.item);
+  } else if (action.type === "remove") {
+    treeStore.value.removeItem(action.item.id);
+  } else if (action.type === "update") {
+    treeStore.value.updateItem(action.newItem);
+  }
+  undoStack.value.push(action);
 }
 </script>
 
