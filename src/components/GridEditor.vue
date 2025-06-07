@@ -20,27 +20,28 @@ import "ag-grid-enterprise";
 
 import {
   ClientSideRowModelModule,
-  ColDef,
-  ColGroupDef,
-  GetRowIdFunc,
-  GridApi,
-  GridOptions,
   CustomEditorModule,
-  GridReadyEvent,
   ModuleRegistry,
   ValidationModule,
   ClientSideRowModelApiModule,
   NumberEditorModule,
   TextEditorModule,
-  CellValueChangedEvent,
+} from "ag-grid-community";
+import type {
+  GetRowIdFunc,
+  ColDef,
   ValueGetterParams,
   ValueSetterParams,
+  CellValueChangedEvent,
+  ColGroupDef,
+  GridApi,
+  GridOptions,
+  GridReadyEvent,
 } from "ag-grid-community";
 import { TreeDataModule } from "ag-grid-enterprise";
 
 import { TreeStore } from "../models/TreeStore";
 import type { TreeItem } from "../models/TreeStore";
-import LabelEditor from "./LabelEditor.vue";
 
 ModuleRegistry.registerModules([
   ClientSideRowModelModule,
@@ -144,6 +145,7 @@ const columnDefs = computed<ColDef[]>(() => [
     },
   },
   {
+    colId: "label",
     // field: "label",
     valueGetter: (params: ValueGetterParams) => {
       return params.data.label;
@@ -192,9 +194,11 @@ async function handleAddChild(item: TreeItem) {
   const rowNode = gridApi.value?.getRowNode(newIndex);
   console.log("rowNode", rowNode);
 
-  // do something with the row, e.g. select it
-  rowNode?.setSelected(true);
-  console.log("handleAddChild", item);
+  const rowIndex = rowNode?.rowIndex!;
+  gridApi.value!.startEditingCell({
+    rowIndex: rowIndex,
+    colKey: "label",
+  });
 }
 
 function handleRemoveNode(item: TreeItem) {
