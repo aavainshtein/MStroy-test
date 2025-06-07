@@ -54,8 +54,8 @@ ModuleRegistry.registerModules([
 
 const isEditMode = ref(false);
 
-const treeStore = ref(
-  new TreeStore([
+const treeStore = ref<TreeStore<TreeItem>>(
+  new TreeStore<TreeItem>([
     { id: 1, parent: null, label: "Айтем 1" },
     { id: "2", parent: 1, label: "Айтем 2" },
     { id: 3, parent: 1, label: "Айтем 3" },
@@ -136,17 +136,22 @@ const autoGroupColumnDef = ref<ColDef>({
   },
 });
 
+const undoStack = ref<any[]>([]);
+const redoStack = ref<any[]>([]);
+
+function pushToUndoStack() {
+  undoStack.value.push(JSON.stringify(treeStore.value.getAll()));
+  // Очищаем redoStack при новом действии
+  redoStack.value = [];
+}
+
 const columnDefs = computed<ColDef[]>(() => [
   {
     headerName: "№ п/п",
-    valueGetter: (params) => {
-      const id = getRowId.value?.(params);
-      return id;
-    },
+    valueGetter: (params) => params.data.id,
   },
   {
     colId: "label",
-    // field: "label",
     valueGetter: (params: ValueGetterParams) => {
       return params.data.label;
     },
@@ -159,12 +164,10 @@ const columnDefs = computed<ColDef[]>(() => [
       ) {
         return false; // No change
       }
-      treeStore.value.updateItem({ ...params.data, label: newLabel });
+      handleRenameNode(params.data, newLabel);
+      return true;
     },
-    // cellRenderer: LabelEditor,
-    // cellEditor: LabelEditor,
     editable: isEditMode.value,
-    // cellEditorParams: { selectedItem: (params) => params.data },
   },
 ]);
 const defaultColDef = ref<ColDef>({
@@ -181,19 +184,16 @@ const onGridReady = (params: GridReadyEvent) => {
 };
 
 async function handleAddChild(item: TreeItem) {
+  pushToUndoStack();
   const newIndex = Date.now().toString();
-  const newItem = {
+  const newItem: TreeItem = {
     id: newIndex,
     parent: item.id,
     label: `Новый элемент ${newIndex}`,
   };
-  treeStore.value.addItem(newItem);
-
-  // get the row node with ID 55
+  treeStore.value.addItem(newItem as TreeItem);
   await new Promise((resolve) => setTimeout(resolve, 1000));
   const rowNode = gridApi.value?.getRowNode(newIndex);
-  console.log("rowNode", rowNode);
-
   const rowIndex = rowNode?.rowIndex!;
   gridApi.value!.startEditingCell({
     rowIndex: rowIndex,
@@ -202,7 +202,27 @@ async function handleAddChild(item: TreeItem) {
 }
 
 function handleRemoveNode(item: TreeItem) {
+  pushToUndoStack();
   treeStore.value.removeItem(item.id);
+}
+
+function handleRenameNode(item: TreeItem, newLabel: string) {
+  pushToUndoStack();
+  treeStore.value.updateItem({ ...item, label: newLabel } as TreeItem);
+}
+
+function undo() {
+  if (undoStack.value.length === 0) return;
+  redoStack.value.push(JSON.stringify(treeStore.value.getAll()));
+  const prev = undoStack.value.pop();
+  treeStore.value.setAll(JSON.parse(prev) as TreeItem[]);
+}
+
+function redo() {
+  if (redoStack.value.length === 0) return;
+  undoStack.value.push(JSON.stringify(treeStore.value.getAll()));
+  const next = redoStack.value.pop();
+  treeStore.value.setAll(JSON.parse(next) as TreeItem[]);
 }
 </script>
 
@@ -216,6 +236,10 @@ function handleRemoveNode(item: TreeItem) {
             : "Включить режим редактирования"
         }}
       </button>
+      <template v-if="isEditMode">
+        <button @click="undo" :disabled="undoStack.length === 0">⟵</button>
+        <button @click="redo" :disabled="redoStack.length === 0">⟶</button>
+      </template>
     </div>
     <div class="ag-theme-alpine" style="height: 500px; width: 800px">
       <AgGridVue

@@ -81,4 +81,11 @@ export class TreeStore<T extends TreeItem> {
   public updateItem(updatedItem: T): void {
     this.itemsMap.set(updatedItem.id, updatedItem);
   }
+
+  public setAll(items: T[]): void {
+    this.itemsMap.clear();
+    for (const item of items) {
+      this.itemsMap.set(item.id, item);
+    }
+  }
 }
