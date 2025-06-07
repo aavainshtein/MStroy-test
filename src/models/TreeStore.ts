@@ -4,8 +4,24 @@ export interface TreeItem {
   [key: string]: any;
 }
 
+export function normalizeId(id: string | number): string {
+  if (typeof id === "number") {
+    return id.toString(); // Convert number to string for consistency
+  }
+
+  return id;
+}
+
+export function normalizeTreeItem<T extends TreeItem>(item: T): T {
+  return {
+    ...item,
+    id: normalizeId(item.id),
+    parent: item.parent ? normalizeId(item.parent) : null,
+  };
+}
+
 export class TreeStore<T extends TreeItem> {
-  private itemsMap: Map<number | string, T> = new Map();
+  private itemsMap: Map<string | number, T> = new Map();
 
   constructor(initialItems: T[]) {
     for (const item of initialItems) {
