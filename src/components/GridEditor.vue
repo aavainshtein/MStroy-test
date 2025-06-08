@@ -1,22 +1,6 @@
 <script setup lang="ts">
-import {
-  ref,
-  h,
-  computed,
-  watch,
-  createApp,
-  defineComponent,
-  onBeforeMount,
-  shallowRef,
-  nextTick,
-} from "vue";
+import { ref, h, computed, defineComponent, shallowRef } from "vue";
 import { AgGridVue } from "ag-grid-vue3";
-// import { ModuleRegistry, GridApi } from "@ag-grid-community/core";
-// import "ag-grid-community/styles/ag-grid.css";
-// import "ag-grid-community/styles/ag-theme-alpine.css";
-import "ag-grid-enterprise";
-
-// import { RowGroupingModule } from "@ag-grid-enterprise/row-grouping";
 
 import {
   ClientSideRowModelModule,
@@ -24,28 +8,35 @@ import {
   ModuleRegistry,
   ValidationModule,
   ClientSideRowModelApiModule,
-  NumberEditorModule,
   TextEditorModule,
+  ColumnAutoSizeModule,
 } from "ag-grid-community";
 import type {
   GetRowIdFunc,
   ColDef,
   ValueGetterParams,
   ValueSetterParams,
-  CellValueChangedEvent,
-  ColGroupDef,
   GridApi,
-  GridOptions,
   GridReadyEvent,
+  SizeColumnsToContentStrategy,
+  SizeColumnsToFitGridStrategy,
+  SizeColumnsToFitProvidedWidthStrategy,
 } from "ag-grid-community";
 import { TreeDataModule } from "ag-grid-enterprise";
 
 import { TreeStore } from "../models/TreeStore";
 import type { TreeItem } from "../models/TreeStore";
+import {
+  ArrowUturnLeftIcon,
+  ArrowUturnRightIcon,
+  PlusIcon,
+  XMarkIcon,
+} from "@heroicons/vue/24/outline";
 
 ModuleRegistry.registerModules([
   ClientSideRowModelModule,
   TreeDataModule,
+  ColumnAutoSizeModule,
   ValidationModule,
   TextEditorModule,
   ClientSideRowModelApiModule,
@@ -53,6 +44,21 @@ ModuleRegistry.registerModules([
 ]);
 
 const isEditMode = ref(false);
+
+const autoSizeStrategy = ref<
+  | SizeColumnsToFitGridStrategy
+  | SizeColumnsToFitProvidedWidthStrategy
+  | SizeColumnsToContentStrategy
+>({
+  type: "fitGridWidth",
+  defaultMinWidth: 100,
+  columnLimits: [
+    {
+      colId: "rowIndex",
+      minWidth: 50,
+    },
+  ],
+});
 
 const treeStore = ref<TreeStore<TreeItem>>(
   new TreeStore<TreeItem>([
@@ -71,8 +77,6 @@ const getRowId = ref<GetRowIdFunc>((params) => {
   return params.data.id;
 });
 
-// const rowData = ref(treeStore.value.getAll());
-
 const rowData = computed(() => {
   return treeStore.value.getAll();
 });
@@ -81,7 +85,9 @@ const gridApi = shallowRef<GridApi | null>(null);
 
 const autoGroupColumnDef = ref<ColDef>({
   headerName: "Категория",
+  flex: 2,
   field: "parent",
+  cellClass: "w-full flex aaaa",
   valueGetter: (params) =>
     treeStore.value.getChildren(params.data.id).length > 0
       ? "Группа"
@@ -89,6 +95,7 @@ const autoGroupColumnDef = ref<ColDef>({
   cellRenderer: "agGroupCellRenderer",
   cellRendererParams: {
     suppressCount: true,
+
     innerRenderer: defineComponent({
       props: ["params"],
       setup(props) {
@@ -99,11 +106,7 @@ const autoGroupColumnDef = ref<ColDef>({
           return h(
             "span",
             {
-              style: {
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "4px",
-              },
+              class: "flex flex-1  justify-between",
             },
             [
               treeStore.value.getChildren(data.id).length > 0
@@ -111,23 +114,20 @@ const autoGroupColumnDef = ref<ColDef>({
                 : "Элемент",
 
               isEditMode.value &&
-                h(
-                  "button",
-                  {
+                h("div", { class: "flex items-center gap-2" }, [
+                  h(PlusIcon, {
                     onClick: () => handleAddChild(data),
-                    style: { padding: "2px 6px" },
-                  },
-                  "+"
-                ),
-              isEditMode.value &&
-                h(
-                  "button",
-                  {
+                    class:
+                      "bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center",
+                  }),
+                  h(XMarkIcon, {
+                    // class: "w-4 h-4 text-white",
+
                     onClick: () => handleRemoveNode(data),
-                    style: { padding: "2px 6px" },
-                  },
-                  "−"
-                ),
+                    class:
+                      "bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center",
+                  }),
+                ]),
             ]
           );
         };
@@ -135,6 +135,52 @@ const autoGroupColumnDef = ref<ColDef>({
     }),
   },
 });
+
+const columnDefs = computed<ColDef[]>(() => [
+  {
+    colId: "rowIndex",
+    width: 80,
+    minWidth: 80,
+    maxWidth: 80,
+    lockPosition: "left",
+    headerName: "№ п/п",
+    valueGetter: (params) =>
+      params.node?.rowIndex ? params.node?.rowIndex + 1 : "x",
+  },
+  {
+    colId: "label",
+    flex: 1,
+    valueGetter: (params: ValueGetterParams) => {
+      return params.data.label;
+    },
+    valueSetter: (params: ValueSetterParams) => {
+      const newLabel = params.newValue || "";
+      if (
+        !newLabel ||
+        newLabel === params.data.label ||
+        newLabel.trim() === ""
+      ) {
+        return false; // No change
+      }
+      handleRenameNode(params.data, newLabel);
+      return true;
+    },
+    editable: isEditMode.value,
+  },
+]);
+
+const defaultColDef = ref<ColDef>({
+  flex: 1,
+});
+
+const treeDataParentIdField = ref("parent");
+const groupDefaultExpanded = ref(-1);
+
+const onGridReady = (params: GridReadyEvent) => {
+  gridApi.value = params.api;
+  console.log("gridApi", gridApi.value);
+  // const updateData = (data) => (rowData.value = data);
+};
 
 // Типы для истории изменений
 interface ActionAdd {
@@ -160,44 +206,6 @@ function pushAction(action: Action) {
   undoStack.value.push(action);
   redoStack.value = [];
 }
-
-const columnDefs = computed<ColDef[]>(() => [
-  {
-    headerName: "№ п/п",
-    valueGetter: (params) => params.data.id,
-  },
-  {
-    colId: "label",
-    valueGetter: (params: ValueGetterParams) => {
-      return params.data.label;
-    },
-    valueSetter: (params: ValueSetterParams) => {
-      const newLabel = params.newValue || "";
-      if (
-        !newLabel ||
-        newLabel === params.data.label ||
-        newLabel.trim() === ""
-      ) {
-        return false; // No change
-      }
-      handleRenameNode(params.data, newLabel);
-      return true;
-    },
-    editable: isEditMode.value,
-  },
-]);
-const defaultColDef = ref<ColDef>({
-  flex: 1,
-});
-
-const treeDataParentIdField = ref("parent");
-const groupDefaultExpanded = ref(-1);
-
-const onGridReady = (params: GridReadyEvent) => {
-  gridApi.value = params.api;
-  console.log("gridApi", gridApi.value);
-  // const updateData = (data) => (rowData.value = data);
-};
 
 async function handleAddChild(item: TreeItem) {
   const newIndex = Date.now().toString();
@@ -258,22 +266,30 @@ function redo() {
 
 <template>
   <div class="grid-editor">
-    <div class="controls">
-      <button @click="isEditMode = !isEditMode">
-        {{
-          isEditMode
-            ? "Выключить режим редактирования"
-            : "Включить режим редактирования"
-        }}
+    <div class="controls flex items-center gap-2 mb-2">
+      <button
+        class="p-2 text-blue-500 cursor-pointer"
+        @click="isEditMode = !isEditMode"
+      >
+        {{ isEditMode ? "Режим: редактирование" : "Режим: просмотр" }}
       </button>
       <template v-if="isEditMode">
-        <button @click="undo" :disabled="undoStack.length === 0">⟵</button>
-        <button @click="redo" :disabled="redoStack.length === 0">⟶</button>
+        <ArrowUturnLeftIcon
+          class="w-6 h-6 text-blue-500 cursor-pointer"
+          :class="!undoStack.length ? 'opacity-50 cursor-not-allowed' : ''"
+          @click="undo"
+        />
+        <ArrowUturnRightIcon
+          class="w-6 h-6 text-blue-500 cursor-pointer"
+          :class="!!undoStack.length ? 'opacity-50 cursor-not-allowed' : ''"
+          @click="redo"
+        />
       </template>
     </div>
-    <div class="ag-theme-alpine" style="height: 500px; width: 800px">
+    <div class="w-full">
       <AgGridVue
-        style="height: 500px; width: 800px"
+        class="w-full"
+        style="height: 500px"
         @grid-ready="onGridReady"
         :columnDefs="columnDefs"
         :defaultColDef="defaultColDef"
@@ -286,11 +302,15 @@ function redo() {
       />
     </div>
   </div>
-  {{ JSON.stringify(treeStore.getAll(), null, 2) }}
 </template>
 
 <style scoped>
 .controls {
   margin-bottom: 10px;
+}
+
+:deep(.ag-group-value) {
+  display: flex;
+  flex-grow: 1;
 }
 </style>
