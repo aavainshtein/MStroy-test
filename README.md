@@ -1,5 +1,11 @@
-# Vue 3 + TypeScript + Vite
+Здравствуйте.
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Попробовал сделать ваше тестовове задание.
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+Точно не порадую вас качеством коммитов и не совсем хорошо покрыл тестами. Но Довольно много времени потратил на изучение aggrid, плюс хотел попробовать по дороге несколько ии иснтрументов, например codex, так что в коммитах беспорядок.
+
+Задание показалось довольно сложным, т.к. пришлось и немного алгоритмов, и с новое апи, и свинью вы подложили с id строки/числа.
+
+Ну и прекрасная фраза, что надо сделать в течении суток, особенно утром в пятницу тоже понравилась.
+
+Буду рад фидбеку.
