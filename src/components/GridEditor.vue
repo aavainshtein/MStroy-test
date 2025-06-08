@@ -12,6 +12,7 @@ import {
   ColumnAutoSizeModule,
 } from "ag-grid-community";
 import type {
+  RowDataUpdatedEvent,
   GetRowIdFunc,
   ColDef,
   ValueGetterParams,
@@ -61,16 +62,22 @@ const autoSizeStrategy = ref<
 });
 
 const treeStore = ref<TreeStore<TreeItem>>(
-  new TreeStore<TreeItem>([
-    { id: 1, parent: null, label: "Айтем 1" },
-    { id: "2", parent: 1, label: "Айтем 2" },
-    { id: 3, parent: 1, label: "Айтем 3" },
-    { id: 4, parent: "2", label: "Айтем 4" },
-    { id: 5, parent: "2", label: "Айтем 5" },
-    { id: 6, parent: "2", label: "Айтем 6" },
-    { id: 7, parent: 4, label: "Айтем 7" },
-    { id: 8, parent: 4, label: "Айтем 8" },
-  ])
+  new TreeStore<TreeItem>(
+    [
+      { id: 1, parent: null, label: "Айтем 1" },
+      { id: "2", parent: 1, label: "Айтем 2" },
+      { id: 3, parent: 1, label: "Айтем 3" },
+      { id: 4, parent: "2", label: "Айтем 4" },
+      { id: 5, parent: "2", label: "Айтем 5" },
+      { id: 6, parent: "2", label: "Айтем 6" },
+      { id: 7, parent: 4, label: "Айтем 7" },
+      { id: 8, parent: 4, label: "Айтем 8" },
+    ].map((item) => ({
+      ...item,
+      id: item.id.toString(), // Приводим id к строке для согласованности
+      parent: item.parent ? item.parent.toString() : null,
+    }))
+  )
 );
 
 const getRowId = ref<GetRowIdFunc>((params) => {
@@ -101,7 +108,6 @@ const autoGroupColumnDef = ref<ColDef>({
       setup(props) {
         return () => {
           const { data } = props.params;
-          console.log("data", data);
 
           return h(
             "span",
@@ -145,7 +151,7 @@ const columnDefs = computed<ColDef[]>(() => [
     lockPosition: "left",
     headerName: "№ п/п",
     valueGetter: (params) =>
-      params.node?.rowIndex ? params.node?.rowIndex + 1 : "x",
+      params.node?.rowIndex ? params.node?.rowIndex + 1 : 1,
   },
   {
     colId: "label",
@@ -154,6 +160,7 @@ const columnDefs = computed<ColDef[]>(() => [
       return params.data.label;
     },
     valueSetter: (params: ValueSetterParams) => {
+      console.log("valueSetter", params);
       const newLabel = params.newValue || "";
       if (
         !newLabel ||
@@ -230,6 +237,7 @@ function handleRemoveNode(item: TreeItem) {
 }
 
 function handleRenameNode(item: TreeItem, newLabel: string) {
+  console.log("handleRenameNode", item, newLabel);
   const oldItem = { ...item };
   const newItem = { ...item, label: newLabel };
   treeStore.value.updateItem(newItem);
